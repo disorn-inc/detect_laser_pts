@@ -1,0 +1,9 @@
+<launch>
+
+<node pkg="rosbag" type="play" name="player" output="screen" args="/home/jasiek/bags/laser_bag_fl.bag">
+</node>
+
+<node pkg="detect_laser_pts" type="detect_laser_pts" name="laser_points_detector" output="screen">
+</node>
+
+</launch>

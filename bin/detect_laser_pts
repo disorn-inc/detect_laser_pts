@@ -1,0 +1,10 @@
+#! /usr/bin/env python
+
+import detect_laser_pts.point_detector
+
+import sys
+
+if __name__ == '__main__':
+
+    detect_laser_pts.point_detector.main( sys.argv )
+
