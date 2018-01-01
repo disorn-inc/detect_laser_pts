@@ -8,7 +8,6 @@ roslib.load_manifest('detect_laser_pts')
 import sys
 import rospy
 import cv2
-import cv2.cv as cv
 import numpy as np
 
 from std_msgs.msg import String
