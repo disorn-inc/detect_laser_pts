@@ -16,19 +16,23 @@ from cv_bridge import CvBridge, CvBridgeError
 
 def drawLines(in_img, k_points):
     """
-       function to draw horizontal lines on the image 
-       helps to see the discrepancy between blobs
+        Function to draw vertical lines on the image 
+        helps to see the discrepancy between blobs
 
     """
 
     out_img = in_img
-    (rows, cols, channels) = in_img.shape
+    (rows, cols) = in_img.shape
 
     try:
-        cv2.line(out_img, (int(k_points[0].pt[0]), 0), (int(k_points[0].pt[0]), int(k_points[0].pt[1])), (255, 0, 0), 1, 8, 0)
-        cv2.line(out_img, (int(k_points[1].pt[0]), 0), (int(k_points[1].pt[0]), int(k_points[1].pt[1])), (255, 0, 0), 1, 8, 0)
-        cv2.line(out_img, (int(k_points[0].pt[0]), int(k_points[0].pt[1])), ((int(k_points[0].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
-        cv2.line(out_img, (int(k_points[1].pt[0]), int(k_points[1].pt[1])), ((int(k_points[1].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[0].pt[0]), 0),
+                (int(k_points[0].pt[0]), int(k_points[0].pt[1])), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[1].pt[0]), 0),
+                (int(k_points[1].pt[0]), int(k_points[1].pt[1])), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[0].pt[0]), int(k_points[0].pt[1])),
+                ((int(k_points[0].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[1].pt[0]), int(k_points[1].pt[1])),
+                ((int(k_points[1].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
     except IndexError:
         return out_img
     
@@ -36,13 +40,13 @@ def drawLines(in_img, k_points):
 
 def showRoi(in_img):
     """
-       function to draw rectangular ROI on the image 
-       helps to choose ROI properly
+        Function to draw rectangular ROI on the image 
+        helps to choose ROI properly
 
     """
     
     out_img = in_img
-    (rows, cols, channels) = in_img.shape
+    (rows, cols) = in_img.shape
     cv2.rectangle(out_img, (10, 30),  (530, 265), (0, 255, 0), 1)
     cv2.rectangle(out_img, (10, 310), (530, 450), (0, 255, 0), 1)
 
@@ -50,8 +54,8 @@ def showRoi(in_img):
 
 def removeNoise(in_img):
     """
-       function to remove noise from image 
-       whitens the ROIs with noise
+        Function to remove noise from image 
+        which whitens the ROIs with noise
 
     """
 
@@ -64,36 +68,27 @@ def removeNoise(in_img):
 
     return out_img
 
+
 class PointsDetector:
+    """
+        Class implementing simple blob detection on 
+        images coming from ros node/bag
 
+    """
+    
     def __init__(self):
+        self.bridge    = CvBridge()
         self.image_pub = rospy.Publisher("image_points", Image, queue_size=10)
-        cv2.namedWindow("PointsDetector", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("original_image", cv2.WINDOW_NORMAL)
-
-        self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.callback)
 
-    def callback(self, data):
+    def getBlobDetectorParams(self):
+        """
+            Sets and returns blob detector params
 
-        #always enclose call to imgmsg_to_cv2() in try-catch to
-        #catch conversion errors
-
-        try:
-            #cv_image is a numpy array
-            cv_image = self.bridge.imgmsg_to_cv2(data, "mono8")
-        except CvBridgeError, e:
-            print e
-        
-        #threshold the image
-        _, cv_image_thresh = cv2.threshold(cv_image, 230, 255, cv2.THRESH_BINARY_INV)
-        
-        #remove noise from the original image
-        cv_image_thresh = removeNoise(cv_image_thresh)
+        """
         
         #Set up parameters for blob detector
         params = cv2.SimpleBlobDetector_Params()
-
         #Change thresholds
         params.minThreshold = 0
         params.maxThreshold = 100
@@ -113,6 +108,31 @@ class PointsDetector:
         params.filterByConvexity = True
         params.minConvexity      = 0.5
 
+        return(params)
+    
+    def callback(self, data):
+        """
+            Callback called when image arrives
+
+        """
+
+        #always enclose call to imgmsg_to_cv2() in try-catch to
+        #catch conversion errors
+        try:
+            #cv_image is a numpy array - function performs coversion
+            #to grayscale
+            cv_image = self.bridge.imgmsg_to_cv2(data, "mono8")
+        except CvBridgeError, e:
+            print e
+        
+        #threshold the image
+        _, cv_image_thresh = cv2.threshold(cv_image, 230, 255, cv2.THRESH_BINARY_INV)
+        
+        #remove noise from the original image
+        cv_image_thresh = removeNoise(cv_image_thresh)
+        
+        params = self.getBlobDetectorParams()
+
         # Create a detector with the parameters
         ver = (cv2.__version__).split('.')
         if(int(ver[0]) < 3):
@@ -131,7 +151,7 @@ class PointsDetector:
         cv2.imshow("PointsDetector", cv_image_thresh_with_keypoints)
         cv2.imshow("original_image", cv_image)
         
-        key = cv2.waitKey(5) & 0xFF
+        cv2.waitKey(5) & 0xFF
 
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image_thresh, "mono8"))
@@ -139,6 +159,10 @@ class PointsDetector:
             print e
 
 def main(args):
+    """
+        Main - spin the node
+
+    """
     
     rospy.init_node('PointsDetector', anonymous=True)
     pd = PointsDetector()
