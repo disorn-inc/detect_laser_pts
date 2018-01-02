@@ -25,10 +25,10 @@ def drawLines(in_img, k_points):
     (rows, cols, channels) = in_img.shape
 
     try:
-        cv2.line( out_img, (int(k_points[0].pt[0]), 0), (int(k_points[0].pt[0] ), int(k_points[0].pt[1])), (255, 0, 0), 1, 8, 0)
-        cv2.line( out_img, (int(k_points[1].pt[0]), 0), (int(k_points[1].pt[0] ), int(k_points[1].pt[1])), (255, 0, 0), 1, 8, 0)
-        cv2.line( out_img, (int(k_points[0].pt[0]), int(k_points[0].pt[1])), ((int(k_points[0].pt[0]), rows - 1) ), (255, 0, 0), 1, 8, 0)
-        cv2.line( out_img, (int(k_points[1].pt[0]), int(k_points[1].pt[1])), ((int(k_points[1].pt[0]), rows - 1) ), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[0].pt[0]), 0), (int(k_points[0].pt[0]), int(k_points[0].pt[1])), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[1].pt[0]), 0), (int(k_points[1].pt[0]), int(k_points[1].pt[1])), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[0].pt[0]), int(k_points[0].pt[1])), ((int(k_points[0].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
+        cv2.line(out_img, (int(k_points[1].pt[0]), int(k_points[1].pt[1])), ((int(k_points[1].pt[0]), rows - 1)), (255, 0, 0), 1, 8, 0)
     except IndexError:
         return out_img
     
@@ -72,7 +72,7 @@ class PointsDetector:
         cv2.namedWindow("original_image", cv2.WINDOW_NORMAL)
 
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/usb_cam/image_mono", Image, self.callback)
+        self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.callback)
 
     def callback(self, data):
 
@@ -84,11 +84,9 @@ class PointsDetector:
             cv_image = self.bridge.imgmsg_to_cv2(data, "mono8")
         except CvBridgeError, e:
             print e
-
-        (rows, cols, channels) = cv_image.shape
-
+        
         #threshold the image
-        ret, cv_image_thresh = cv2.threshold(cv_image, 230, 255, cv2.THRESH_BINARY_INV)
+        _, cv_image_thresh = cv2.threshold(cv_image, 230, 255, cv2.THRESH_BINARY_INV)
         
         #remove noise from the original image
         cv_image_thresh = removeNoise(cv_image_thresh)
@@ -115,27 +113,32 @@ class PointsDetector:
         params.filterByConvexity = True
         params.minConvexity      = 0.5
 
-        detector = cv2.SimpleBlobDetector(params)
-
+        # Create a detector with the parameters
+        ver = (cv2.__version__).split('.')
+        if(int(ver[0]) < 3):
+            detector = cv2.SimpleBlobDetector(params)
+        else:
+            detector = cv2.SimpleBlobDetector_create(params)
+        
         # Detect blobs
         keypoints = detector.detect(cv_image_thresh)
 
         # Draw detected blobs as red circles.
         # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
         cv_image_thresh_with_keypoints = cv2.drawKeypoints(cv_image_thresh, keypoints, np.array([]), (0, 0, 255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        cv_image_thresh_with_keypoints = drawLines(cv_image_thresh_with_keypoints, keypoints)
 
         #cv_image_thresh_with_keypoints = drawLines(cv_image_thresh_with_keypoints, keypoints)
         cv2.imshow("PointsDetector", cv_image_thresh_with_keypoints)
         cv2.imshow("original_image", cv_image)
-        cv2.waitKey(5)
+        
+        key = cv2.waitKey(5) & 0xFF
 
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image_thresh, "mono8"))
         except CvBridgeError, e:
             print e
 
-def main( args ):
+def main(args):
     
     rospy.init_node('PointsDetector', anonymous=True)
     pd = PointsDetector()
